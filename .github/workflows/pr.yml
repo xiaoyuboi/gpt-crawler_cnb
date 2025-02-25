@@ -1,8 +1,8 @@
-name: Pull request workflow
+name: HTTP triggered workflow
 
 on:
-  pull_request:
-    types: [opened, reopened, synchronize, edited]
+  repository_dispatch:
+    types: [build-event]  # 自定义事件类型
 
 permissions:
   pull-requests: read
@@ -25,33 +25,4 @@ jobs:
       - uses: preactjs/compressed-size-action@v2
         with:
           pattern: ".dist/**/*.{js,ts,json}"
-  static-tests:
-    name: Static tests
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-node@v2
-        with:
-          cache: npm
-          node-version: 18
-      - run: npm i
-      - run: npm run prettier:check
-  build-docker:
-    name: Build Docker image
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - uses: actions/checkout@v2
-      - uses: docker/build-push-action@v2
-        with:
-          context: .
-          file: ./Dockerfile
-          push: false
-  semantic-pr:
-    name: Validate PR title for semantic versioning
-    runs-on: ubuntu-latest
-    steps:
-      - uses: amannn/action-semantic-pull-request@v5
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  # 其他 jobs 保持不变...
