@@ -1,0 +1,111 @@
+name: Run GPT-Crawler and Push to Notion
+
+on:
+  schedule:
+    - cron: '0 0 * * 0'  # 每周日午夜运行
+  workflow_dispatch:      # 允许手动触发
+
+jobs:
+  crawl-and-push:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '16'
+        
+    - name: Install dependencies
+      run: npm install
+      
+    - name: Configure crawler
+      run: |
+        cat > config.ts << 'EOL'
+        import { Config } from "./src/types";
+
+        export const defaultConfig: Config = {
+          url: "${{ secrets.CRAWL_URL }}",
+          match: "${{ secrets.CRAWL_MATCH_PATTERN }}",
+          selector: "${{ secrets.CRAWL_SELECTOR }}",
+          maxPagesToCrawl: 50,
+          outputFileName: "output.json",
+        };
+        EOL
+        
+    - name: Run crawler
+      run: npm start
+      
+    - name: Install Notion SDK
+      run: npm install @notionhq/client
+      
+    - name: Push to Notion
+      run: |
+        cat > push-to-notion.js << 'EOL'
+        const { Client } = require('@notionhq/client');
+        const fs = require('fs');
+
+        const notion = new Client({ 
+          auth: process.env.NOTION_API_KEY 
+        });
+
+        async function pushToNotion() {
+          try {
+            const data = JSON.parse(fs.readFileSync('./output.json', 'utf8'));
+            
+            // 处理爬取的数据
+            for (const page of data) {
+              await notion.pages.create({
+                parent: { database_id: process.env.NOTION_DATABASE_ID },
+                properties: {
+                  Title: {
+                    title: [
+                      {
+                        text: {
+                          content: page.title || 'Untitled Page'
+                        }
+                      }
+                    ]
+                  },
+                  URL: {
+                    url: page.url || ''
+                  },
+                  // 根据您的需求添加更多属性
+                },
+                children: [
+                  {
+                    object: 'block',
+                    type: 'paragraph',
+                    paragraph: {
+                      rich_text: [
+                        {
+                          type: 'text',
+                          text: {
+                            content: page.content || 'No content'
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              });
+              
+              console.log(`Added page: ${page.title}`);
+            }
+            
+            console.log('All data pushed to Notion successfully!');
+          } catch (error) {
+            console.error('Error pushing to Notion:', error);
+            process.exit(1);
+          }
+        }
+
+        pushToNotion();
+        EOL
+        
+        node push-to-notion.js
+      env:
+        NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+        NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
