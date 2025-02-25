@@ -1,8 +1,11 @@
 name: HTTP triggered workflow
 
 on:
-  repository_dispatch:
-    types: [build-event]  # 自定义事件类型
+  push:
+    branches: [ main, master ]  # 当推送到主分支时触发
+  pull_request:
+    branches: [ main, master ]  # 当创建PR时触发
+  workflow_dispatch:   
 
 permissions:
   pull-requests: read
